@@ -1,0 +1,88 @@
+require(pacman)
+
+pacman::p_load(tidyverse,scales,lubridate,astsa,dynlm,tseries,forecast)
+
+
+covid19<- read.csv(file.choose(),header=TRUE)
+covid19 <- covid19 %>%
+  mutate(Date= mdy(Date))
+
+
+
+theme_set(theme_minimal())
+
+theme_set(theme_minimal())
+covid19<- covid19 %>%
+  arrange(Date)%>%
+  group_by(Country.Region) %>%
+  mutate(new_cases_n = Confirmed - lag(Confirmed, default=0))%>%
+  ungroup() 
+
+
+
+covid19%>%
+  filter(Country.Region =="US") %>%
+  ggplot(aes(x=Date,y=new_cases_n))+
+  geom_line() +
+  scale_x_date(date_breaks= "2 weeks", date_labels= "%d %b")+
+  labs(x="Date", y= "new cases",
+       title ="New Confirmed Covid-19 cases in the United States")
+
+usacovid19<-select(covid19,Country.Region,Date,new_cases_n)
+usacovid19<-filter(usacovid19,Country.Region=="US")
+usacovid19<-select(usacovid19, Date, new_cases_n)
+usacovid19<-select(usacovid19,new_cases_n)
+plot.ts(usacovid19$new_cases_n)
+
+usacovid19<-unlist(usacovid19)
+uascovid19<-as.numeric(usacovid19)
+is.ts(usacovid19)
+usacovid19<-as.ts(usacovid19)
+
+
+# test for stationary
+#Ljung_box test for independence(non-stationary signal will have low p-value)
+#ADF test for unit root(non-stationary will have a large p-value)
+#KPSS low p-value will not trend stationary
+
+lag.length=365.2
+Box.test(usacovi19,lag = lag.length,type="Ljung-Box")
+adf.test(covid19)
+kpss.test(covid19)
+fit<-arima(usacovid19,order=c(0,1,0))
+ar1<-arima(usacovid19,order = c(0,1,1))
+ar2<-arima(usacovid19,order = c(1,1,1))
+ar3<-arima(usacovid19,order = c(0,1,2))
+
+ar1$aic
+ar2$aic
+ar3$aic
+#Look at ACF and PACF scorce
+
+layout(1:2)
+acf(ar1$residuals,lag.max = 20)
+pacf(ar1$residuals,lag.max = 20)
+
+layout(1:2)
+acf(ar2$residuals,lag.max = 20)
+pacf(ar2$residuals,lag.max = 20)
+
+layout(1:2)
+acf(ar3$residuals,lag.max = 20)
+pacf(ar3$residuals,lag.max = 20)
+
+#fail to reject the null that the residuals are randomly distributed(p-vaule>.05)
+Box.test(ar1$residuals,type = "Ljung-Box")
+Box.test(ar2$residuals,type = "Ljung-Box")
+Box.test(ar3$residuals,type = "Ljung-Box")
+#forecast
+forecast <- predict(ar3, n.ahead=60)
+upper <- forecast$pred + 1.96*forecast$se
+lower <- forecast$pred - 1.96*forecast$se
+ts.plot(usacovid19,forecast$pred, col=c("black","red"))
+lines(upper, col="blue", lty="solid")
+lines(lower, col="blue", lty="solid")
+
+#automated confirms that we got the best model
+Auto.fit<-auto.arima(usacovid19)
+plot(forecast(Auto.fit))
